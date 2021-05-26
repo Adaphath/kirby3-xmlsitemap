@@ -182,7 +182,7 @@ class XMLSitemap
   /**
    * @SuppressWarnings(PHPMD.CyclomaticComplexity)
    */
-  public static function getSitemap( Pages $p, bool $debug = false, ?bool $nocache = false ) : string {
+  public static function getSitemap( Pages $p, bool $debug = false, ?bool $nocache = false, ?string $explicitLang = null ) : string {
     static::$debug = $debug && kirby()->option( 'debug' ) !== null && kirby()->option( 'debug' ) == true;
     static::pickupOptions();
 
@@ -190,7 +190,7 @@ class XMLSitemap
 
     // if cacheTTL disabled or nocache set
     if ( static::$optionCACHE == null || static::$optionCACHE == "" || ( $nocache != false && $debug == true ) ) {
-      $r = static::generateSitemap( $p, $debug );
+      $r = static::generateSitemap( $p, $debug, $explicitLang );
       if ( static::$debug == true ) {
         if ( $nocache != false ) {
           $r .= "<!-- Freshly generated; explicit nocache -->\n";
@@ -215,11 +215,11 @@ class XMLSitemap
       $ops .= '-' . json_encode( static::$optionShimH );
       $ops .= '-' . json_encode( $debug );
 
-      $cacheName = XMLSITEMAP_VERSION . '-sitemap-' . md5( $ops );
+      $cacheName = XMLSITEMAP_VERSION . '-sitemap' . $explicitLang . '-' . md5( $ops );
 
       $r = $cacheCache->get( $cacheName );
       if ( $r == null ) {
-        $r = static::generateSitemap( $p, $debug );
+        $r = static::generateSitemap( $p, $debug, $explicitLang );
         $cacheCache->set( $cacheName, $r, static::$optionCACHE );
         if ( static::$debug == true ) {
           $r .= '<!-- Freshly generated; cached into ' . md5( $ops ) . ' for ' . static::$optionCACHE . " minute(s) for reuse -->\n";
@@ -248,7 +248,7 @@ class XMLSitemap
    * @SuppressWarnings(PHPMD.NPathComplexity)
    * @SuppressWarnings(PHPMD.ExcessiveMethodLength)
    */
-  private static function generateSitemap( Pages $p, bool $debug = false ) : string {
+  private static function generateSitemap( Pages $p, bool $debug = false, ?string $explicitLang = null ) : string {
     static::pickupOptions();
     $tbeg = microtime( true );
 
@@ -284,7 +284,12 @@ class XMLSitemap
     $license = $system->license();
     static::addComment( $r, 'Kl = ' . ( $license == false ? 'n' : 'y' ) );
 
-    if ( kirby()->multilang() == true ) {
+    if ($explicitLang != null) {
+      static::addComment( $r, 'Processing as explicit Language' );
+      static::addPagesToSitemapFromClosure( $r, $explicitLang );
+      static::addPagesToSitemap( $p, $r, $explicitLang );
+    }
+    else if ( kirby()->multilang() == true ) {
       static::addComment( $r, 'Processing as ML; number of languages = ' . kirby()->languages()->count() );
       assert( kirby()->languages()->count() > 0 );
       foreach ( kirby()->languages() as $lang ) {
